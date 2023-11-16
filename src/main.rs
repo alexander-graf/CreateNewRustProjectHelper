@@ -7,27 +7,29 @@ use std::process::Command;
 
 #[derive(Clone, Data, Lens)]
 struct ProjectData {
-    new_project_name: String,
+    project_name: String,
 }
 
-fn build_ui() -> impl Widget<ProjectData> {
-    let main_path = dirs::home_dir().unwrap().join("rustprojects");
+fn assemble_user_interface() -> impl Widget<ProjectData> {
+    let project_directory = dirs::home_dir().unwrap().join("rustprojects");
 
     Flex::column()
-        .with_child(create_text_field())
-        .with_spacer(8.0) // Adds some space between the text field and the button
-        .with_child(create_project_button())
-        .with_spacer(8.0) // Adds some space between the "Create Project" and "Open Folder" buttons
-        .with_child(create_open_folder_button(main_path.as_path()))
+        .with_child(create_name_input_field())
+        .with_spacer(8.0)
+        .with_child(create_new_project_button())
+        .with_spacer(8.0)
+        .with_child(create_open_project_directory_button(
+            project_directory.as_path(),
+        ))
 }
 
 fn main() {
-    let main_window = WindowDesc::new(build_ui()).title(LocalizedString::new(
+    let main_window = WindowDesc::new(assemble_user_interface()).title(LocalizedString::new(
         "Create New Rust Project With Cargo Add",
     ));
 
     let data = ProjectData {
-        new_project_name: String::new(),
+        project_name: String::new(),
     };
 
     AppLauncher::with_window(main_window)
@@ -35,41 +37,44 @@ fn main() {
         .expect("Failed to launch application");
 }
 
-fn open_new_toml_and_new_main(new_project_path: &Path) {
-    let toml_path = new_project_path.join("Cargo.toml");
-    let main_rs_path = new_project_path.join("src/main.rs");
+fn open_project_files(project_directory: &Path) {
+    let toml_file_path = project_directory.join("Cargo.toml");
+    let main_file_path = project_directory.join("src/main.rs");
 
     Command::new("code")
-        .args(&[toml_path.to_str().unwrap(), main_rs_path.to_str().unwrap()])
+        .args(&[
+            toml_file_path.to_str().unwrap(),
+            main_file_path.to_str().unwrap(),
+        ])
         .spawn()
         .expect("Failed to open files in VS Code");
 }
 
-fn open_folder(path: &Path) {
+fn open_directory_in_thunar(directory_path: &Path) {
     Command::new("thunar")
-        .arg(path.to_str().unwrap())
+        .arg(directory_path.to_str().unwrap())
         .spawn()
         .expect("Failed to open folder");
 }
 
-fn create_text_field() -> impl Widget<ProjectData> {
+fn create_name_input_field() -> impl Widget<ProjectData> {
     TextBox::new()
         .padding(10.0)
         .expand_width()
-        .lens(ProjectData::new_project_name)
+        .lens(ProjectData::project_name)
 }
 
-fn create_project_button() -> impl Widget<ProjectData> {
+fn create_new_project_button() -> impl Widget<ProjectData> {
     Button::new("Create Project")
         .padding(10.0)
         .on_click(move |_ctx, data: &mut ProjectData, _env| {
-            if data.new_project_name.trim().is_empty() {
+            if data.project_name.trim().is_empty() {
                 println!("The text field is empty.");
                 return;
             }
 
             let rust_projects_path = dirs::home_dir().unwrap().join("rustprojects");
-            let project_name = data.new_project_name.clone();
+            let project_name = data.project_name.clone();
             let new_project_path = rust_projects_path.join(&project_name);
 
             if !new_project_path.exists() {
@@ -100,7 +105,7 @@ fn create_project_button() -> impl Widget<ProjectData> {
                                 );
                                 println!("Opening new project in VS Code");
                                 println!("{}", new_project_path.display());
-                                open_new_toml_and_new_main(&new_project_path);
+                                open_project_files(&new_project_path);
                             } else {
                                 println!(
                                     "Failed to add druid dependency. Output was: \n{}\nError was: \n{}",
@@ -119,17 +124,17 @@ fn create_project_button() -> impl Widget<ProjectData> {
                 }
             } else {
                 println!("Project already exists. Opening files in VS Code.");
-                open_new_toml_and_new_main(&new_project_path);
+                open_project_files(&new_project_path);
             }
         })
 }
 
-fn create_open_folder_button(main_path: &Path) -> impl Widget<ProjectData> {
+fn create_open_project_directory_button(main_path: &Path) -> impl Widget<ProjectData> {
     let main_path = main_path.to_path_buf(); // Convert to PathBuf for ownership
     Button::new("Open Folder")
         .padding(10.0)
         .on_click(move |_ctx, data: &mut ProjectData, _env| {
-            let path = main_path.join(&data.new_project_name);
+            let path = main_path.join(&data.project_name);
             if path.is_dir() {
                 // Check if the directory is empty
                 match fs::read_dir(&path) {
@@ -137,27 +142,21 @@ fn create_open_folder_button(main_path: &Path) -> impl Widget<ProjectData> {
                         if dir.next().is_none() {
                             // If the directory is empty, open the parent directory
                             if let Some(parent_path) = path.parent() {
-                                open_folder(&parent_path);
+                                open_directory_in_thunar(&parent_path);
                             } else {
-                                println!(
-                                    "The directory '{}' has no parent.",
-                                    data.new_project_name
-                                );
+                                println!("The directory '{}' has no parent.", data.project_name);
                             }
                         } else {
                             // If the directory is not empty, open it
-                            open_folder(&path);
+                            open_directory_in_thunar(&path);
                         }
                     }
                     Err(e) => {
-                        println!(
-                            "Failed to read directory '{}': {}",
-                            data.new_project_name, e
-                        );
+                        println!("Failed to read directory '{}': {}", data.project_name, e);
                     }
                 }
             } else {
-                println!("'{}' is not a directory.", data.new_project_name);
+                println!("'{}' is not a directory.", data.project_name);
             }
         })
 }
