@@ -1,3 +1,4 @@
+use std::path::Path;
 use dirs;
 use druid::widget::{Button, Checkbox, Controller, Flex, Padding, TextBox};
 use druid::{
@@ -238,7 +239,6 @@ fn create_new_project(project_name: &str) {
     }
 }
 
-use std::path::Path;
 
 fn open_new_toml_and_new_main(new_project_path: &Path) {
     let toml_path = new_project_path.join("Cargo.toml");
