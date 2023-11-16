@@ -4,6 +4,7 @@ use druid::{AppLauncher, Data, Lens, LocalizedString, Widget, WindowDesc};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use std::thread;
 
 #[derive(Clone, Data, Lens)]
 struct ProjectData {
@@ -77,55 +78,57 @@ fn create_new_project_button() -> impl Widget<ProjectData> {
             let project_name = data.project_name.clone();
             let new_project_path = rust_projects_path.join(&project_name);
 
-            if !new_project_path.exists() {
-                println!("Now running 'cargo new'");
-
-                let output = Command::new("cargo")
-                    .args(&["new", &project_name])
-                    .current_dir(&rust_projects_path)
-                    .output()
-                    .expect("Failed to execute command");
-
-                if output.status.success() {
-                    println!("Successfully created new project: {}", project_name);
-
-                    println!("About to run 'cargo add druid' in the new project's directory");
+            thread::spawn(move || {
+                if !new_project_path.exists() {
+                    println!("Now running 'cargo new'");
 
                     let output = Command::new("cargo")
-                        .args(&["add", "druid"])
-                        .current_dir(&new_project_path)
-                        .output();
+                        .args(&["new", &project_name])
+                        .current_dir(&rust_projects_path)
+                        .output()
+                        .expect("Failed to execute command");
 
-                    match output {
-                        Ok(output) => {
-                            if output.status.success() {
-                                println!(
-                                    "Successfully added druid dependency to the project: {}",
-                                    project_name
-                                );
-                                println!("Opening new project in VS Code");
-                                println!("{}", new_project_path.display());
-                                open_project_files(&new_project_path);
-                            } else {
-                                println!(
-                                    "Failed to add druid dependency. Output was: \n{}\nError was: \n{}",
-                                    String::from_utf8_lossy(&output.stdout),
-                                    String::from_utf8_lossy(&output.stderr)
-                                );
+                    if output.status.success() {
+                        println!("Successfully created new project: {}", project_name);
+
+                        println!("About to run 'cargo add druid' in the new project's directory");
+                        let cargo_add_values = vec!["add", "druid", "env", "dev"];
+                        let output = Command::new("cargo")
+                            .args(cargo_add_values)
+                            .current_dir(&new_project_path)
+                            .output();
+
+                        match output {
+                            Ok(output) => {
+                                if output.status.success() {
+                                    println!(
+                                        "Successfully added druid dependency to the project: {}",
+                                        project_name
+                                    );
+                                    println!("Opening new project in VS Code");
+                                    println!("{}", new_project_path.display());
+                                    open_project_files(&new_project_path);
+                                } else {
+                                    println!(
+                                        "Failed to add druid dependency. Output was: \n{}\nError was: \n{}",
+                                        String::from_utf8_lossy(&output.stdout),
+                                        String::from_utf8_lossy(&output.stderr)
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                println!("Failed to execute command: {}", e);
                             }
                         }
-                        Err(e) => {
-                            println!("Failed to execute command: {}", e);
-                        }
+                    } else {
+                        let error_message = String::from_utf8_lossy(&output.stderr);
+                        println!("Failed to create new project: {}", error_message);
                     }
                 } else {
-                    let error_message = String::from_utf8_lossy(&output.stderr);
-                    println!("Failed to create new project: {}", error_message);
+                    println!("Project already exists. Opening files in VS Code.");
+                    open_project_files(&new_project_path);
                 }
-            } else {
-                println!("Project already exists. Opening files in VS Code.");
-                open_project_files(&new_project_path);
-            }
+            });
         })
 }
 
