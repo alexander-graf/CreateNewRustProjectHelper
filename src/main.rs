@@ -5,7 +5,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 use std::thread;
-
+use std::time::Duration;
 #[derive(Clone, Data, Lens)]
 struct ProjectData {
     project_name: String,
@@ -56,6 +56,10 @@ fn open_directory_in_thunar(directory_path: &Path) {
         .arg(directory_path.to_str().unwrap())
         .spawn()
         .expect("Failed to open folder");
+    thread::sleep(Duration::from_secs(3));
+        if let Err(e) = activate_window("Create New") {
+            eprintln!("Failed to activate window: {}", e);
+        }
 }
 
 fn create_name_input_field() -> impl Widget<ProjectData> {
@@ -128,8 +132,13 @@ fn create_new_project_button() -> impl Widget<ProjectData> {
                     println!("Project already exists. Opening files in VS Code.");
                     open_project_files(&new_project_path);
                 }
-            });
+            });   thread::sleep(Duration::from_secs(3));
+        if let Err(e) = activate_window("Create New") {
+            eprintln!("Failed to activate window: {}", e);
+        }
         })
+
+     
 }
 
 fn create_open_project_directory_button(main_path: &Path) -> impl Widget<ProjectData> {
@@ -162,4 +171,13 @@ fn create_open_project_directory_button(main_path: &Path) -> impl Widget<Project
                 println!("'{}' is not a directory.", data.project_name);
             }
         })
+}
+
+fn activate_window(name: &str) -> std::io::Result<()> {
+    let command = format!(r#"xdotool search --name "{}" | while read id; do xdotool windowactivate $id; done"#, name);
+    Command::new("sh")
+        .arg("-c")
+        .arg(&command)
+        .output()?;
+    Ok(())
 }
